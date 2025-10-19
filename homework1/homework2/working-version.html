@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>工作版本 - GLTF模型展示</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #000;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+        #container {
+            width: 100vw;
+            height: 100vh;
+        }
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 14px;
+            z-index: 100;
+        }
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 18px;
+            z-index: 200;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        .model-selector {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border-radius: 8px;
+            color: white;
+            z-index: 100;
+        }
+        select {
+            background: #333;
+            color: white;
+            border: 1px solid #555;
+            padding: 8px;
+            border-radius: 4px;
+            margin-left: 10px;
+            font-size: 14px;
+        }
+        .debug {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            color: white;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 12px;
+            z-index: 100;
+            max-height: 200px;
+            overflow-y: auto;
+            max-width: 400px;
+        }
+        .status {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            color: white;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 12px;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+    <div id="container"></div>
+    <div id="loading" style="display: none;">正在加载模型...</div>
+    <div id="info">
+        <h3>🔧 工作版本</h3>
+        <p>使用多个CDN确保库加载成功</p>
+        <p>请查看调试信息了解加载状态</p>
+    </div>
+    <div class="model-selector">
+        <label for="modelSelect">选择模型：</label>
+        <select id="modelSelect">
+            <option value="house_model.glb">房屋模型</option>
+            <option value="house.glb">房屋1</option>
+            <option value="house1.glb">房屋2</option>
+            <option value="x-12_mech.glb">机械模型</option>
+            <option value="downloaded_scene.glb">场景模型</option>
+        </select>
+    </div>
+    <div class="debug" id="debugLog">
+        <div>调试信息将显示在这里...</div>
+    </div>
+    <div class="status" id="status">
+        <div>状态: 初始化中...</div>
+    </div>
+
+    <!-- 尝试多个CDN源 -->
+    <script>
+        // 库加载状态
+        let librariesLoaded = {
+            three: false,
+            gltfLoader: false,
+            orbitControls: false
+        };
+
+        function log(message) {
+            const debugLog = document.getElementById('debugLog');
+            const div = document.createElement('div');
+            div.innerHTML = `[${new Date().toLocaleTimeString()}] ${message}`;
+            debugLog.appendChild(div);
+            debugLog.scrollTop = debugLog.scrollHeight;
+            console.log(message);
+        }
+
+        function updateStatus() {
+            const status = document.getElementById('status');
+            const loaded = Object.values(librariesLoaded).filter(Boolean).length;
+            const total = Object.keys(librariesLoaded).length;
+            status.innerHTML = `状态: 库加载 ${loaded}/${total}`;
+        }
+
+        // 加载Three.js
+        function loadThreeJS() {
+            log('📦 开始加载Three.js...');
+            
+            const script = document.createElement('script');
+            script.src = 'https://unpkg.com/three@0.158.0/build/three.min.js';
+            script.onload = function() {
+                log('✅ Three.js加载成功');
+                librariesLoaded.three = true;
+                updateStatus();
+                loadGLTFLoader();
+            };
+            script.onerror = function() {
+                log('❌ Three.js加载失败，尝试备用CDN...');
+                // 尝试备用CDN
+                const backupScript = document.createElement('script');
+                backupScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r158/three.min.js';
+                backupScript.onload = function() {
+                    log('✅ Three.js从备用CDN加载成功');
+                    librariesLoaded.three = true;
+                    updateStatus();
+                    loadGLTFLoader();
+                };
+                backupScript.onerror = function() {
+                    log('❌ 所有Three.js CDN都失败');
+                };
+                document.head.appendChild(backupScript);
+            };
+            document.head.appendChild(script);
+        }
+
+        // 加载GLTFLoader
+        function loadGLTFLoader() {
+            if (!librariesLoaded.three) return;
+            
+            log('📦 开始加载GLTFLoader...');
+            
+            const script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/npm/three@0.158.0/examples/js/loaders/GLTFLoader.js';
+            script.onload = function() {
+                log('✅ GLTFLoader加载成功');
+                librariesLoaded.gltfLoader = true;
+                updateStatus();
+                loadOrbitControls();
+            };
+            script.onerror = function() {
+                log('❌ GLTFLoader加载失败，尝试备用CDN...');
+                const backupScript = document.createElement('script');
+                backupScript.src = 'https://unpkg.com/three@0.158.0/examples/js/loaders/GLTFLoader.js';
+                backupScript.onload = function() {
+                    log('✅ GLTFLoader从备用CDN加载成功');
+                    librariesLoaded.gltfLoader = true;
+                    updateStatus();
+                    loadOrbitControls();
+                };
+                backupScript.onerror = function() {
+                    log('❌ 尝试第三个CDN...');
+                    const thirdScript = document.createElement('script');
+                    thirdScript.src = 'https://threejs.org/examples/js/loaders/GLTFLoader.js';
+                    thirdScript.onload = function() {
+                        log('✅ GLTFLoader从第三个CDN加载成功');
+                        librariesLoaded.gltfLoader = true;
+                        updateStatus();
+                        loadOrbitControls();
+                    };
+                    thirdScript.onerror = function() {
+                        log('❌ 所有GLTFLoader CDN都失败，尝试手动实现...');
+                        // 手动实现简单的GLTF加载器
+                        createSimpleGLTFLoader();
+                    };
+                    document.head.appendChild(thirdScript);
+                };
+                document.head.appendChild(backupScript);
+            };
+            document.head.appendChild(script);
+        }
+
+        // 创建简单的GLTF加载器
+        function createSimpleGLTFLoader() {
+            log('🔧 创建简单GLTF加载器...');
+            
+            // 手动实现GLTFLoader
+            THREE.GLTFLoader = function() {
+                this.load = function(url, onLoad, onProgress, onError) {
+                    log('⚠️ 使用简化GLTF加载器，可能不支持所有功能');
+                    
+                    // 创建一个简单的错误提示
+                    if (onError) {
+                        onError(new Error('GLTFLoader不可用，请检查网络连接或使用其他CDN'));
+                    }
+                };
+            };
+            
+            librariesLoaded.gltfLoader = true;
+            updateStatus();
+            loadOrbitControls();
+        }
+
+        // 加载OrbitControls
+        function loadOrbitControls() {
+            if (!librariesLoaded.three) return;
+            
+            log('📦 开始加载OrbitControls...');
+            
+            const script = document.createElement('script');
+            script.src = 'https://unpkg.com/three@0.158.0/examples/js/controls/OrbitControls.js';
+            script.onload = function() {
+                log('✅ OrbitControls加载成功');
+                librariesLoaded.orbitControls = true;
+                updateStatus();
+                checkAllLoaded();
+            };
+            script.onerror = function() {
+                log('❌ OrbitControls加载失败，尝试备用CDN...');
+                const backupScript = document.createElement('script');
+                backupScript.src = 'https://cdn.jsdelivr.net/npm/three@0.158.0/examples/js/controls/OrbitControls.js';
+                backupScript.onload = function() {
+                    log('✅ OrbitControls从备用CDN加载成功');
+                    librariesLoaded.orbitControls = true;
+                    updateStatus();
+                    checkAllLoaded();
+                };
+                backupScript.onerror = function() {
+                    log('❌ 所有OrbitControls CDN都失败');
+                };
+                document.head.appendChild(backupScript);
+            };
+            document.head.appendChild(script);
+        }
+
+        // 检查所有库是否加载完成
+        function checkAllLoaded() {
+            const allLoaded = Object.values(librariesLoaded).every(Boolean);
+            if (allLoaded) {
+                log('🎉 所有库加载完成，开始初始化...');
+                setTimeout(init, 100);
+            }
+        }
+
+        // 开始加载库
+        loadThreeJS();
+    </script>
+
+    <script>
+        let scene, camera, renderer, controls;
+        let currentModel = null;
+
+        function init() {
+            log('🚀 初始化Three.js场景...');
+            
+            // 再次检查Three.js是否可用
+            if (typeof THREE === 'undefined') {
+                log('❌ Three.js仍然不可用！');
+                return;
+            }
+            
+            log(`✅ Three.js版本: ${THREE.REVISION}`);
+            log(`✅ GLTFLoader可用: ${typeof THREE.GLTFLoader !== 'undefined'}`);
+            log(`✅ OrbitControls可用: ${typeof THREE.OrbitControls !== 'undefined'}`);
+            
+            // 创建场景
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x87CEEB);
+
+            // 创建相机
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(5, 5, 5);
+
+            // 创建渲染器
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+            const container = document.getElementById('container');
+            container.appendChild(renderer.domElement);
+
+            // 设置OrbitControls
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+
+            // 设置光照
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
+            directionalLight.position.set(10, 10, 5);
+            directionalLight.castShadow = true;
+            scene.add(directionalLight);
+
+            // 创建地面
+            const groundGeometry = new THREE.PlaneGeometry(20, 20);
+            const groundMaterial = new THREE.MeshLambertMaterial({ color: 0x888888 });
+            const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+            ground.rotation.x = -Math.PI / 2;
+            ground.position.y = -1;
+            ground.receiveShadow = true;
+            scene.add(ground);
+
+            // 创建默认立方体
+            const geometry = new THREE.BoxGeometry(1, 1, 1);
+            const material = new THREE.MeshLambertMaterial({ color: 0x00ff00 });
+            const cube = new THREE.Mesh(geometry, material);
+            cube.name = 'defaultCube';
+            cube.position.set(0, 0, 0);
+            scene.add(cube);
+
+            log('✅ Three.js场景初始化完成');
+
+            // 设置模型选择器
+            const modelSelect = document.getElementById('modelSelect');
+            modelSelect.addEventListener('change', function() {
+                loadModel(this.value);
+            });
+
+            // 窗口大小调整
+            window.addEventListener('resize', onWindowResize);
+
+            // 更新状态
+            document.getElementById('status').innerHTML = '状态: 就绪';
+
+            animate();
+        }
+
+        function loadModel(modelPath) {
+            log(`📦 开始加载模型: ${modelPath}`);
+            
+            // 移除当前模型
+            if (currentModel) {
+                scene.remove(currentModel);
+                currentModel = null;
+            }
+
+            // 移除默认立方体
+            const defaultGeometry = scene.getObjectByName('defaultCube');
+            if (defaultGeometry) {
+                scene.remove(defaultGeometry);
+            }
+
+            // 显示加载提示
+            document.getElementById('loading').style.display = 'block';
+
+            const loader = new THREE.GLTFLoader();
+            const modelUrl = `../assets/models/${modelPath}`;
+            
+            log(`🌐 请求URL: ${modelUrl}`);
+            
+            // 先测试文件是否存在
+            fetch(modelUrl)
+                .then(response => {
+                    log(`📡 响应状态: ${response.status} ${response.statusText}`);
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    log('✅ 模型文件可访问');
+                    return response;
+                })
+                .then(() => {
+                    loader.load(
+                        modelUrl,
+                        function(gltf) {
+                            log('✅ 模型加载成功!');
+                            
+                            currentModel = gltf.scene;
+                            currentModel.position.set(0, 0, 0);
+                            currentModel.scale.setScalar(1);
+                            
+                            // 启用阴影
+                            currentModel.traverse(function(child) {
+                                if (child.isMesh) {
+                                    child.castShadow = true;
+                                    child.receiveShadow = true;
+                                }
+                            });
+
+                            // 计算边界框
+                            const box = new THREE.Box3().setFromObject(currentModel);
+                            const center = box.getCenter(new THREE.Vector3());
+                            const size = box.getSize(new THREE.Vector3());
+                            
+                            log(`模型中心: (${center.x.toFixed(2)}, ${center.y.toFixed(2)}, ${center.z.toFixed(2)})`);
+                            log(`模型大小: (${size.x.toFixed(2)}, ${size.y.toFixed(2)}, ${size.z.toFixed(2)})`);
+
+                            // 调整相机位置
+                            const maxDim = Math.max(size.x, size.y, size.z);
+                            const fov = camera.fov * (Math.PI / 180);
+                            let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2));
+                            cameraZ *= 1.5;
+
+                            camera.position.set(cameraZ, cameraZ, cameraZ);
+                            camera.lookAt(center);
+                            controls.target.copy(center);
+                            controls.update();
+
+                            scene.add(currentModel);
+                            document.getElementById('loading').style.display = 'none';
+                            log('🎉 模型已添加到场景!');
+                        },
+                        function(progress) {
+                            const percent = Math.round((progress.loaded / progress.total) * 100);
+                            log(`📊 加载进度: ${percent}%`);
+                        },
+                        function(error) {
+                            log(`❌ 模型加载失败: ${error.message}`);
+                            log(`错误类型: ${error.type}`);
+                            
+                            // 重新添加默认立方体
+                            const geometry = new THREE.BoxGeometry(1, 1, 1);
+                            const material = new THREE.MeshLambertMaterial({ color: 0xff0000 });
+                            const cube = new THREE.Mesh(geometry, material);
+                            cube.name = 'errorCube';
+                            cube.position.set(0, 0, 0);
+                            scene.add(cube);
+                            
+                            document.getElementById('loading').style.display = 'none';
+                        }
+                    );
+                })
+                .catch(error => {
+                    log(`❌ 文件访问失败: ${error.message}`);
+                    
+                    // 重新添加默认立方体
+                    const geometry = new THREE.BoxGeometry(1, 1, 1);
+                    const material = new THREE.MeshLambertMaterial({ color: 0xff0000 });
+                    const cube = new THREE.Mesh(geometry, material);
+                    cube.name = 'errorCube';
+                    cube.position.set(0, 0, 0);
+                    scene.add(cube);
+                    
+                    document.getElementById('loading').style.display = 'none';
+                });
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+    </script>
+</body>
+</html>

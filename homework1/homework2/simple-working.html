@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>简单工作版本</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #000;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+        #container {
+            width: 100vw;
+            height: 100vh;
+        }
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 14px;
+            z-index: 100;
+        }
+        .model-selector {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border-radius: 8px;
+            color: white;
+            z-index: 100;
+        }
+        select {
+            background: #333;
+            color: white;
+            border: 1px solid #555;
+            padding: 8px;
+            border-radius: 4px;
+            margin-left: 10px;
+            font-size: 14px;
+        }
+        .debug {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            color: white;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 12px;
+            z-index: 100;
+            max-height: 200px;
+            overflow-y: auto;
+            max-width: 400px;
+        }
+    </style>
+</head>
+<body>
+    <div id="container"></div>
+    <div id="info">
+        <h3>🎯 简单工作版本</h3>
+        <p>这个版本直接显示几何体，不依赖GLTF加载</p>
+        <p>应该能看到不同颜色的3D模型</p>
+    </div>
+    <div class="model-selector">
+        <label for="modelSelect">选择模型：</label>
+        <select id="modelSelect">
+            <option value="house_model">🏠 房屋模型</option>
+            <option value="house">🏡 房屋1</option>
+            <option value="house1">🏘️ 房屋2</option>
+            <option value="mech">🤖 机械模型</option>
+            <option value="scene">🌍 场景模型</option>
+        </select>
+    </div>
+    <div class="debug" id="debugLog">
+        <div>调试信息将显示在这里...</div>
+    </div>
+
+    <script src="https://unpkg.com/three@0.158.0/build/three.min.js"></script>
+
+    <script>
+        let scene, camera, renderer, controls;
+        let currentModel = null;
+
+        function log(message) {
+            const debugLog = document.getElementById('debugLog');
+            const div = document.createElement('div');
+            div.innerHTML = `[${new Date().toLocaleTimeString()}] ${message}`;
+            debugLog.appendChild(div);
+            debugLog.scrollTop = debugLog.scrollHeight;
+            console.log(message);
+        }
+
+        function init() {
+            log('🚀 初始化Three.js场景...');
+            
+            // 创建场景
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x87CEEB);
+            log('✅ 场景创建成功');
+
+            // 创建相机
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(5, 5, 5);
+            camera.lookAt(0, 0, 0);
+            log('✅ 相机创建成功');
+
+            // 创建渲染器
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            log('✅ 渲染器创建成功');
+
+            const container = document.getElementById('container');
+            container.appendChild(renderer.domElement);
+            log('✅ 渲染器已添加到DOM');
+
+            // 设置光照
+            setupLighting();
+
+            // 创建地面
+            createGround();
+
+            // 设置鼠标控制
+            setupMouseControls();
+
+            // 创建默认模型
+            createModel('house_model');
+
+            // 设置模型选择器
+            setupModelSelector();
+
+            // 开始渲染循环
+            animate();
+            log('✅ 初始化完成！');
+        }
+
+        function setupLighting() {
+            // 环境光
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+            scene.add(ambientLight);
+
+            // 主方向光
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
+            directionalLight.position.set(10, 10, 5);
+            directionalLight.castShadow = true;
+            scene.add(directionalLight);
+            log('✅ 光照设置完成');
+        }
+
+        function createGround() {
+            const groundGeometry = new THREE.PlaneGeometry(20, 20);
+            const groundMaterial = new THREE.MeshLambertMaterial({ color: 0x888888 });
+            const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+            ground.rotation.x = -Math.PI / 2;
+            ground.position.y = -1;
+            ground.receiveShadow = true;
+            scene.add(ground);
+            log('✅ 地面创建完成');
+        }
+
+        function setupMouseControls() {
+            let isMouseDown = false;
+            let isRightMouseDown = false;
+            let mouseX = 0, mouseY = 0;
+            
+            const container = document.getElementById('container');
+            
+            container.addEventListener('mousedown', (event) => {
+                if (event.button === 0) {
+                    isMouseDown = true;
+                } else if (event.button === 2) {
+                    isRightMouseDown = true;
+                }
+                mouseX = event.clientX;
+                mouseY = event.clientY;
+            });
+            
+            container.addEventListener('mouseup', (event) => {
+                if (event.button === 0) {
+                    isMouseDown = false;
+                } else if (event.button === 2) {
+                    isRightMouseDown = false;
+                }
+            });
+            
+            container.addEventListener('mousemove', (event) => {
+                if (isMouseDown) {
+                    const deltaX = event.clientX - mouseX;
+                    const deltaY = event.clientY - mouseY;
+                    
+                    // 旋转相机
+                    const spherical = new THREE.Spherical();
+                    spherical.setFromVector3(camera.position);
+                    spherical.theta -= deltaX * 0.01;
+                    spherical.phi += deltaY * 0.01;
+                    spherical.phi = Math.max(0.1, Math.min(Math.PI - 0.1, spherical.phi));
+                    
+                    camera.position.setFromSpherical(spherical);
+                    camera.lookAt(0, 0, 0);
+                    
+                    mouseX = event.clientX;
+                    mouseY = event.clientY;
+                } else if (isRightMouseDown) {
+                    const deltaX = event.clientX - mouseX;
+                    const deltaY = event.clientY - mouseY;
+                    
+                    // 平移相机
+                    const right = new THREE.Vector3();
+                    right.crossVectors(camera.up, camera.getWorldDirection(new THREE.Vector3())).normalize();
+                    const up = camera.up.clone();
+                    const moveSpeed = 0.01;
+                    
+                    camera.position.addScaledVector(right, -deltaX * moveSpeed);
+                    camera.position.addScaledVector(up, deltaY * moveSpeed);
+                    
+                    mouseX = event.clientX;
+                    mouseY = event.clientY;
+                }
+            });
+            
+            container.addEventListener('wheel', (event) => {
+                const scale = event.deltaY > 0 ? 1.1 : 0.9;
+                camera.position.multiplyScalar(scale);
+                event.preventDefault();
+            });
+            
+            container.addEventListener('contextmenu', (event) => {
+                event.preventDefault();
+            });
+            
+            log('✅ 鼠标控制设置完成');
+        }
+
+        function createModel(modelType) {
+            log(`📦 创建模型: ${modelType}`);
+            
+            // 移除当前模型
+            if (currentModel) {
+                scene.remove(currentModel);
+                currentModel = null;
+            }
+
+            // 根据类型创建不同的几何体
+            let geometry, material;
+            switch(modelType) {
+                case 'house_model':
+                    geometry = new THREE.BoxGeometry(2, 2, 2);
+                    material = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
+                    break;
+                case 'house':
+                    geometry = new THREE.CylinderGeometry(1, 1, 2, 8);
+                    material = new THREE.MeshLambertMaterial({ color: 0xFF9800 });
+                    break;
+                case 'house1':
+                    geometry = new THREE.SphereGeometry(1.5, 16, 16);
+                    material = new THREE.MeshLambertMaterial({ color: 0x4CAF50 });
+                    break;
+                case 'mech':
+                    geometry = new THREE.CylinderGeometry(1, 1, 3, 8);
+                    material = new THREE.MeshLambertMaterial({ color: 0x666666 });
+                    break;
+                case 'scene':
+                    geometry = new THREE.OctahedronGeometry(1.5);
+                    material = new THREE.MeshLambertMaterial({ color: 0x9C27B0 });
+                    break;
+                default:
+                    geometry = new THREE.BoxGeometry(1.5, 1.5, 1.5);
+                    material = new THREE.MeshLambertMaterial({ color: 0x00ff00 });
+            }
+
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.position.set(0, 0, 0);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            
+            scene.add(mesh);
+            currentModel = mesh;
+            
+            log(`✅ 模型创建完成: ${modelType}`);
+            log(`几何体类型: ${geometry.type}`);
+            log(`材质颜色: #${material.color.getHexString()}`);
+        }
+
+        function setupModelSelector() {
+            const modelSelect = document.getElementById('modelSelect');
+            modelSelect.addEventListener('change', function() {
+                createModel(this.value);
+            });
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // 旋转模型
+            if (currentModel) {
+                currentModel.rotation.x += 0.01;
+                currentModel.rotation.y += 0.01;
+            }
+            
+            // 渲染场景
+            renderer.render(scene, camera);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // 页面加载完成后初始化
+        window.addEventListener('load', function() {
+            setTimeout(init, 100);
+        });
+
+        // 窗口大小调整
+        window.addEventListener('resize', onWindowResize);
+    </script>
+</body>
+</html>
