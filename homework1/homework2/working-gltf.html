@@ -108,7 +108,7 @@
             <option value="house_model.glb">🏠 房屋模型</option>
             <option value="house.glb">🏡 房屋1</option>
             <option value="house1.glb">🏘️ 房屋2</option>
-            <option value="x-12_mech.glb">🤖 机械模型</option>
+            <option value="x-12_mech.glb" selected>🤖 机械模型</option>
             <option value="downloaded_scene.glb">🌍 场景模型</option>
         </select>
     </div>
@@ -122,159 +122,20 @@
         <div>调试信息将显示在这里...</div>
     </div>
 
-    <!-- 只加载Three.js核心库 -->
-    <script src="https://unpkg.com/three@0.158.0/build/three.min.js"></script>
+    <!-- 使用 importmap 引入 Three.js 及其模块 -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.158.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.158.0/examples/jsm/"
+            }
+        }
+    </script>
 
-    <script>
-        // 内联GLTFLoader和OrbitControls代码
-        (function() {
-            // 简化的GLTFLoader
-            THREE.GLTFLoader = function() {
-                this.load = function(url, onLoad, onProgress, onError) {
-                    console.log('GLTFLoader: 开始加载', url);
-                    
-                    // 创建一个简单的几何体作为模型
-                    const gltfScene = {
-                        children: [],
-                        traverse: function(callback) {
-                            this.children.forEach(callback);
-                        }
-                    };
-                    
-                    // 根据URL创建不同的几何体
-                    let geometry, material;
-                    if (url.includes('house_model')) {
-                        // 房屋模型 - 使用立方体组合
-                        geometry = new THREE.BoxGeometry(2, 2, 2);
-                        material = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
-                    } else if (url.includes('house1')) {
-                        // 房屋1 - 使用球体
-                        geometry = new THREE.SphereGeometry(1.5, 16, 16);
-                        material = new THREE.MeshLambertMaterial({ color: 0x4CAF50 });
-                    } else if (url.includes('house')) {
-                        // 其他房屋 - 使用圆柱体
-                        geometry = new THREE.CylinderGeometry(1, 1, 2, 8);
-                        material = new THREE.MeshLambertMaterial({ color: 0xFF9800 });
-                    } else if (url.includes('mech')) {
-                        // 机械模型 - 使用复杂几何体
-                        geometry = new THREE.CylinderGeometry(1, 1, 3, 8);
-                        material = new THREE.MeshLambertMaterial({ color: 0x666666 });
-                    } else if (url.includes('scene')) {
-                        // 场景模型 - 使用八面体
-                        geometry = new THREE.OctahedronGeometry(1.5);
-                        material = new THREE.MeshLambertMaterial({ color: 0x9C27B0 });
-                    } else {
-                        // 默认模型
-                        geometry = new THREE.BoxGeometry(1.5, 1.5, 1.5);
-                        material = new THREE.MeshLambertMaterial({ color: 0x00ff00 });
-                    }
-                    
-                    const mesh = new THREE.Mesh(geometry, material);
-                    mesh.castShadow = true;
-                    mesh.receiveShadow = true;
-                    mesh.position.set(0, 0, 0);
-                    gltfScene.children.push(mesh);
-                    
-                    console.log('GLTFLoader: 几何体创建完成', geometry, material);
-                    
-                    // 模拟加载延迟
-                    setTimeout(() => {
-                        console.log('GLTFLoader: 调用onLoad回调');
-                        if (onLoad) {
-                            onLoad({ scene: gltfScene, animations: [] });
-                        }
-                    }, 200);
-                };
-            };
-
-            // 简化的OrbitControls
-            THREE.OrbitControls = function(camera, domElement) {
-                this.camera = camera;
-                this.domElement = domElement;
-                this.target = { x: 0, y: 0, z: 0 };
-                this.enableDamping = true;
-                this.dampingFactor = 0.05;
-                this.enableZoom = true;
-                this.enablePan = true;
-                this.enableRotate = true;
-                this.minDistance = 1;
-                this.maxDistance = 50;
-                this.minPolarAngle = 0;
-                this.maxPolarAngle = Math.PI;
-                
-                // 简化的鼠标控制
-                let isMouseDown = false;
-                let mouseX = 0, mouseY = 0;
-                let isRightMouseDown = false;
-                
-                domElement.addEventListener('mousedown', (event) => {
-                    if (event.button === 0) {
-                        isMouseDown = true;
-                    } else if (event.button === 2) {
-                        isRightMouseDown = true;
-                    }
-                    mouseX = event.clientX;
-                    mouseY = event.clientY;
-                });
-                
-                domElement.addEventListener('mouseup', (event) => {
-                    if (event.button === 0) {
-                        isMouseDown = false;
-                    } else if (event.button === 2) {
-                        isRightMouseDown = false;
-                    }
-                });
-                
-                domElement.addEventListener('mousemove', (event) => {
-                    if (isMouseDown) {
-                        const deltaX = event.clientX - mouseX;
-                        const deltaY = event.clientY - mouseY;
-                        
-                        // 旋转相机
-                        const spherical = new THREE.Spherical();
-                        spherical.setFromVector3(camera.position);
-                        spherical.theta -= deltaX * 0.01;
-                        spherical.phi += deltaY * 0.01;
-                        spherical.phi = Math.max(0.1, Math.min(Math.PI - 0.1, spherical.phi));
-                        
-                        camera.position.setFromSpherical(spherical);
-                        camera.lookAt(this.target);
-                        
-                        mouseX = event.clientX;
-                        mouseY = event.clientY;
-                    } else if (isRightMouseDown) {
-                        const deltaX = event.clientX - mouseX;
-                        const deltaY = event.clientY - mouseY;
-                        
-                        // 平移相机
-                        const right = new THREE.Vector3();
-                        right.crossVectors(camera.up, camera.getWorldDirection(new THREE.Vector3())).normalize();
-                        const up = camera.up.clone();
-                        const moveSpeed = 0.01;
-                        
-                        camera.position.addScaledVector(right, -deltaX * moveSpeed);
-                        camera.position.addScaledVector(up, deltaY * moveSpeed);
-                        
-                        mouseX = event.clientX;
-                        mouseY = event.clientY;
-                    }
-                });
-                
-                domElement.addEventListener('wheel', (event) => {
-                    const scale = event.deltaY > 0 ? 1.1 : 0.9;
-                    camera.position.multiplyScalar(scale);
-                    event.preventDefault();
-                });
-                
-                domElement.addEventListener('contextmenu', (event) => {
-                    event.preventDefault();
-                });
-                
-                this.update = function() {
-                    // 简化的更新
-                };
-            };
-        })();
+    <script type="module">
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
         // 全局变量
         let scene, camera, renderer, controls;
@@ -310,8 +171,8 @@
             }
             
             log(`✅ Three.js版本: ${THREE.REVISION}`);
-            log(`✅ GLTFLoader可用: ${typeof THREE.GLTFLoader !== 'undefined'}`);
-            log(`✅ OrbitControls可用: ${typeof THREE.OrbitControls !== 'undefined'}`);
+            log(`✅ GLTFLoader可用: ${typeof GLTFLoader !== 'undefined'}`);
+            log(`✅ OrbitControls可用: ${typeof OrbitControls !== 'undefined'}`);
             
             // 创建场景
             scene = new THREE.Scene();
@@ -345,7 +206,7 @@
             createDefaultGeometry();
             
             // 加载默认模型
-            loadModel('house_model.glb');
+            loadModel('x-12_mech.glb');
 
             // 设置模型选择器事件
             setupModelSelector();
@@ -361,7 +222,7 @@
 
         function setupOrbitControls() {
             // 使用内联的OrbitControls
-            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls = new OrbitControls(camera, renderer.domElement);
             
             // 配置OrbitControls参数
             controls.enableDamping = true;
@@ -455,7 +316,7 @@
             document.getElementById('modelName').textContent = modelPath;
 
             // 使用内联的GLTFLoader加载模型
-            const loader = new THREE.GLTFLoader();
+            const loader = new GLTFLoader();
             const modelUrl = `../assets/models/${modelPath}`;
             log(`🌐 请求URL: ${modelUrl}`);
             
@@ -515,15 +376,15 @@
                         log('🎬 动画已加载:', gltf.animations.length, '个动画');
                     }
 
-                     // 隐藏加载提示
-                     const loadingElement = document.getElementById('loading');
-                     if (loadingElement) {
-                         loadingElement.style.display = 'none';
-                         log('✅ 加载提示已隐藏');
-                     } else {
-                         log('❌ 找不到加载提示元素');
-                     }
-                     log('🎉 模型加载完成！');
+                    // 隐藏加载提示
+                    const loadingElement = document.getElementById('loading');
+                    if (loadingElement) {
+                        loadingElement.style.display = 'none';
+                        log('✅ 加载提示已隐藏');
+                    } else {
+                        log('❌ 找不到加载提示元素');
+                    }
+                    log('🎉 模型加载完成！');
                 },
                 function(progress) {
                     const percent = Math.round((progress.loaded / progress.total) * 100);
